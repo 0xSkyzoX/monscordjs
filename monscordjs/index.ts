@@ -126,17 +126,17 @@ export default class Discord {
 
      /**
       * listening to event
-      * @param type Event
+      * @param type Event type to listen for
       */
-     listen<T extends ListenEvents>(type: T, paramsEvent: (params_event: EventParamMap[T]) => void) {
+     listen<T extends keyof EventParamMap>(type: T, paramsEvent: (params_event: EventParamMap[T]) => void) {
           webSocket.addEventListener("message", async (e) => {
                const data = JSON.parse(e.data.toString())
-               if (type == "MessageCreate") {
-                    if (data.t == "MESSAGE_CREATE") {
+               if (type === "MessageCreate") {
+                    if (data.t === "MESSAGE_CREATE") {
                          const _message: MessageInfo = data.d
                          const message = new Message(this.token, _message)
                          await message.client.getClientData()
-                         paramsEvent(message)
+                         paramsEvent(message as EventParamMap[T])
                     }
                }
                if (type == "InteractionCreate") {
@@ -144,7 +144,7 @@ export default class Discord {
                          const _data: InteractionInfo = data.d
                          console.log(_data.data.options)
                          const interaction = new Interactions(this.token, _data, webSocket)
-                         paramsEvent(interaction)
+                         paramsEvent(interaction as EventParamMap[T])
                     }
                }
           })
