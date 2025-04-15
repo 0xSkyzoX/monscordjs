@@ -1,60 +1,101 @@
 import dotenv from "dotenv";
-dotenv.config()
-import Message from '../monscordjs/Client/Message';
-import { ActivityType, ApplicationsTypes, InteractionTypeResponse, OptionsType, Role } from '../monscordjs/@types/datatypes';
-import Interactions from "../monscordjs/Client/Interactions/interactions";
-import Discord from "../monscordjs"
-const TOKEN = process.env.TOKEN
-const discord = new Discord(TOKEN)
+dotenv.config();
+import Discord from "../monscordjs";
+import {
+  ActivityType,
+  InteractionTypeResponse,
+  OptionsType,
+} from "../monscordjs/@types/datatypes";
+import { config } from "./config";
+import {
+  handleClearCommand,
+  handleTestCommand,
+  handleHelpInteraction,
+} from "./commands";
+import { logger } from "./utils/logger";
 
-// Discord event listener function
+// Use token from environment variables with fallback to config file
+const TOKEN = process.env.TOKEN || config.token;
 
+// Validation
+if (!TOKEN) {
+  logger.error(
+    "No Discord token provided. Please set TOKEN in environment variables or config.ts"
+  );
+  process.exit(1);
+}
 
+// Initialize Discord client
+const discord = new Discord(TOKEN);
 
+// Command handlers
 discord.listen("MessageCreate", async (message) => {
-     if (message.author.bot) return;
-     if (message.content.startsWith("!clear")) {
-          const args = message.content.split(" ")
-          const argsNUM: number = (args[1] as unknown) as number
-          if (argsNUM < 2) {
-               return discord.FC(() => {
-                    message.reply({content: "Error || Message Clear number should be than 2!"})
-                    setTimeout(() => {
-                         message.client.deleteMessage()
-                    }, 3000)
-               })
-          }
-          message.reply({content: "Yo yo"})
-          message.react("👍")
-          message.channel.bulkDelete(argsNUM)
-     }
-})
+  // Ignore bot messages
+  if (message.author.bot) return;
 
-discord.listen("MessageCreate", (message) => {
-     if (message.author.bot) return;
-     if (message.content === "212") {
-          message.reply({content: "Hello Mate!"})
-          discord.sendEmbed(message.channel_id, {title: "Hello World", description: "This is a Discord Bot!", color: 0xfff, author: {name: message.author.global_name, icon_url: message.author.avatarURL()}})
-          console.log(message.author.avatar)
-     }
-} )
+  // Command routing
+  if (message.content.startsWith("!clear")) {
+    await handleClearCommand(message, discord);
+  } else if (message.content === "212") {
+    await handleTestCommand(message, discord);
+  }
+});
 
+// Interaction handlers
 discord.listen("InteractionCreate", async (interaction) => {
-     if (interaction.data.name == "help") {
-          interaction.send({type: InteractionTypeResponse.CHANNEL_MESSAGE_WITH_SOURCE, data: {embeds: [{title: 'Hello'}]}})
-     }
-})
+  switch (interaction.data.name) {
+    case "help":
+      await handleHelpInteraction(interaction);
+      break;
+    // Add more interaction handlers as needed
+  }
+});
 
-// Discord.js FC (function)
-
+// Bot initialization
 discord.FC(async () => {
-     discord.presence("idle", {activities: [{name: "discord.js plus", type: ActivityType.Listening}]})
-     discord.client_interaction.setApplicationId("1076585679687008326")
-     await discord.client_interaction.registerSlashcommand("GLOBAL", {name: 'hello',description: 'Your command description', options: [{name: "your", type: OptionsType.STRING, description: "the best code"}]})
-})
+  try {
+    // Set presence
+    discord.presence("idle", {
+      activities: [
+        {
+          name: "discord.js plus",
+          type: ActivityType.Listening,
+        },
+      ],
+    });
 
-// Discord connect, to Websocket Gateway
+    // Register slash commands
+    discord.client_interaction.setApplicationId("1076585679687008326");
+    await discord.client_interaction.registerSlashcommand("GLOBAL", {
+      name: "hello",
+      description: "Send a friendly hello",
+      options: [
+        {
+          name: "your",
+          type: OptionsType.STRING,
+          description: "the best code",
+        },
+      ],
+    });
 
+    logger.info("Slash commands registered successfully");
+  } catch (error) {
+    logger.error("Error during initialization:", error);
+  }
+});
+
+// Connect to Discord
 discord.connect((client) => {
-     console.log(`${client.username} Online`)
-})
+  logger.info(`Bot ${client.username} is now online`);
+});
+
+// Handle process termination
+process.on("SIGINT", () => {
+  logger.info("Shutting down bot gracefully...");
+  // Add any cleanup logic here
+  process.exit(0);
+});
+
+process.on("uncaughtException", (error) => {
+  logger.error("Uncaught exception:", error);
+});
